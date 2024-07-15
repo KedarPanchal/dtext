@@ -55,5 +55,5 @@ def open(filename: Union[str, Path]="", text: Union[str, subprocess.ReadableBuff
 
         return path.read_text()
     finally:
-        if temp:
+        if temp and path.exists():
             path.unlink()
