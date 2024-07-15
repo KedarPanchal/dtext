@@ -3,10 +3,11 @@ import subprocess
 import platform
 from collections import defaultdict
 from pathlib import Path
-from typing import Union, Optional
+from collections.abc import Buffer
+from typing import IO, Any, Union, Optional
 
 _default_apps = defaultdict(lambda: ["vi"])
-_default_apps["windows"] = ["notepad"]
+_default_apps["windows"] = ["start", "notepad"]
 _default_apps["darwin"] = ["open", "-e"]
 _default_apps["ubuntu"] = ["gedit"]
 _default_apps["fedora"] = ["nano"]
@@ -28,32 +29,29 @@ def _default_args() -> list[str]:
 def default() -> str:
     return _default_args()[0]
 
-def open(filename: Union[str, Path]="", text: Union[str, subprocess.ReadableBuffer]="", editor: Optional[str]=None, pipe: Union[subprocess._FILE, subprocess.ReadableBuffer, None]=None, temp: bool=False, *args: str) -> str:
+def open(filename: Union[str, Path]="", text: Optional[str]=None, temp: bool=False, editor: Optional[str]=None, pipe=None, *args: str) -> str:
     path = Path(filename) if isinstance(filename, str) else filename
     if filename is not None and Path(filename).exists() and temp:
         raise ValueError("Opened file cannot be temporary if it exists")
-
+    
+    process = None
     try:
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch()
 
-        args_arr = [*_default_args(), *args, filename] if editor is not None else [editor, *args, filename]
-
-        if isinstance(text, str):
+        args_arr = [*_default_args(), *args, filename] if editor is None else [editor, *args, filename]
+        if text is not None:
             path.write_text(text)
-        else:
-            path.write_bytes(text)
 
-        match type(pipe):
-            case subprocess._FILE:
-                subprocess.run(args_arr, check=True, stdin=pipe)
-            case subprocess.ReadableBuffer:
-                subprocess.run(args_arr, check=True, input=pipe)
-            case None:
-                subprocess.run(args_arr, check=True)
+        if pipe is not None:
+            process = subprocess.Popen(args_arr, stdin=pipe, shell=True)
+        else:
+            process = subprocess.Popen(args_arr, shell=True)
 
         return path.read_text()
     finally:
         if temp and path.exists():
+            process.terminate()
+            process.wait()
             path.unlink()
