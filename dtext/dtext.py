@@ -52,6 +52,6 @@ def open(filename: Union[str, Path]="", text: Optional[str]=None, temp: bool=Fal
         return path.read_text()
     finally:
         if temp and path.exists():
-            process.terminate()
+            process.terminate() # "You're terminated"
             process.wait()
             path.unlink()
